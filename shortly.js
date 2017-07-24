@@ -1,7 +1,9 @@
+var session = require('express-session');
 var express = require('express');
 var util = require('./lib/utility');
 var partials = require('express-partials');
 var bodyParser = require('body-parser');
+var bcrypt = require('bcrypt-nodejs');
 
 
 var db = require('./app/config');
@@ -21,27 +23,48 @@ app.use(bodyParser.json());
 // Parse forms (signup/login)
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(__dirname + '/public'));
+app.use(session({
+  secret: 'keyboard cat',
+  resave: false,
+  saveUninitialized: true
+}));
 
-
-app.get('/', 
-function(req, res) {
+isLoggedIn = function (req, res, next) {
+  if (!req.session.loggedIn) {
+    res.status(302).redirect('/login');
+  } else {
+    next();
+  }
+};
+ 
+app.get('/', isLoggedIn, function(req, res) {
   res.render('index');
 });
 
-app.get('/create', 
-function(req, res) {
+app.get('/login', function(req, res) {
+  res.render('login');
+});
+
+app.get('/create', isLoggedIn, function(req, res) {
   res.render('index');
 });
 
-app.get('/links', 
-function(req, res) {
+app.get('/signup', function(req, res) {
+  res.render('signup');
+});
+
+app.get('/links', isLoggedIn, function(req, res) {
   Links.reset().fetch().then(function(links) {
     res.status(200).send(links.models);
   });
 });
 
-app.post('/links', 
-function(req, res) {
+app.get('/logout', function(req, res) {
+  req.session.loggedIn = false;
+  res.status(302).redirect('/login');
+});
+
+app.post('/links', isLoggedIn, function(req, res) {
   var uri = req.body.url;
 
   if (!util.isValidUrl(uri)) {
@@ -76,45 +99,43 @@ function(req, res) {
 // Write your authentication routes here
 /************************************************************/
 
-app.post('/login', 
-function(req, res) {
+app.post('/login', function(req, res) {
   var username = req.body.username;
   var password = req.body.password;
 
   new User({ username: username}).fetch().then(function(found) {
     if (found) {
-      if (found.attributes.password === password) {
-        res.status(302).redirect('/links');
-      } else {
-        res.status(403).redirect('/signup');
-        //should handle this by warning the password was incorrect
-      }
+      bcrypt.compare(password, found.attributes.password, function(error, result) {
+        if (result) {
+          req.session.loggedIn = true;
+          res.status(302).redirect('/');
+        } else {
+          res.status(403).redirect('/signup');
+          //should handle this by warning the password was incorrect
+        }
+      });
     } else {
-      res.status(403).redirect('/signup');
+      res.status(403).redirect('/login');
     }
   });
 });
 
-app.post('/signup', 
-function(req, res) {
+app.post('/signup', function(req, res) {
   var username = req.body.username;
   var password = req.body.password;
 
   new User({ username: username}).fetch().then(function(found) {
     if (found) {
       res.status(302).redirect('/login');
-      // if (found.attributes.password === password) {
-      //   res.status(200).redirect('/links');
-      // } else {
-      //   res.status(403).redirect('/signup');
-      //   //should handle this by warning the password was incorrect
-      // }
     } else {
+      var hash = bcrypt.hashSync(password);
       Users.create({
+        // YES WE ARE GOOD DEVELOPERS IT IS NOT ALL PLAINTEXT!!!!!!!
         username: username,
-        password: password
+        password: hash
       })
       .then(function() {
+        req.session.loggedIn = true;
         res.status(302).redirect('/');
       });
     }
