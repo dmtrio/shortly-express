@@ -76,7 +76,50 @@ function(req, res) {
 // Write your authentication routes here
 /************************************************************/
 
+app.post('/login', 
+function(req, res) {
+  var username = req.body.username;
+  var password = req.body.password;
 
+  new User({ username: username}).fetch().then(function(found) {
+    if (found) {
+      if (found.attributes.password === password) {
+        res.status(302).redirect('/links');
+      } else {
+        res.status(403).redirect('/signup');
+        //should handle this by warning the password was incorrect
+      }
+    } else {
+      res.status(403).redirect('/signup');
+    }
+  });
+});
+
+app.post('/signup', 
+function(req, res) {
+  var username = req.body.username;
+  var password = req.body.password;
+
+  new User({ username: username}).fetch().then(function(found) {
+    if (found) {
+      res.status(302).redirect('/login');
+      // if (found.attributes.password === password) {
+      //   res.status(200).redirect('/links');
+      // } else {
+      //   res.status(403).redirect('/signup');
+      //   //should handle this by warning the password was incorrect
+      // }
+    } else {
+      Users.create({
+        username: username,
+        password: password
+      })
+      .then(function() {
+        res.status(302).redirect('/');
+      });
+    }
+  });
+});
 
 /************************************************************/
 // Handle the wildcard route last - if all other routes fail
