@@ -1,6 +1,7 @@
 node_modules
 db/*.sqlite
 *.DS_Store
+githubConfig.json
 
 # Floobits
 .floo
