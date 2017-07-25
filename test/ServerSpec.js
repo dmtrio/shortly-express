@@ -1,5 +1,6 @@
 var expect = require('chai').expect;
 var request = require('request');
+var bcrypt = require('bcrypt-nodejs');
 
 var app = require('../shortly.js');
 var db = require('../app/config');
@@ -34,7 +35,9 @@ describe('', function() {
 
   beforeEach(function() {
     // log out currently signed in user
-    request('http://127.0.0.1:4568/logout', function(error, res, body) {});
+    request('http://127.0.0.1:4568/logout', function(error, res, body) {
+      console.log('before', res.statusCode);
+    });
 
     // delete link for roflzoo from db so it can be created later for the test
     db.knex('urls')
@@ -78,9 +81,11 @@ describe('', function() {
 
     beforeEach(function(done) {
       // create a user that we can then log-in with
+      var hash = bcrypt.hashSync('Phillip');
+      
       new User({
         'username': 'Phillip',
-        'password': 'Phillip'
+        'password': hash
       }).save().then(function() {
         var options = {
           'method': 'POST',
@@ -298,15 +303,103 @@ describe('', function() {
     });
 
   }); // 'Account Creation'
+  
+  describe('Password hashing', function() {
+    it('Signup creates a user record', function(done) {
+      var options = {
+        'method': 'POST',
+        'uri': 'http://127.0.0.1:4568/signup',
+        'json': {
+          'username': 'Tim2',
+          'password': 'password1234'
+        }
+      };
+
+      request(options, function(error, res, body) {
+        db.knex('users')
+          .where('username', '=', 'Tim2')
+          .then(function(res) {
+            if (res[0] && res[0]['password']) {
+              var password = res[0]['password'];
+            }
+            expect(password).to.not.equal('password1234');
+            done();
+          }).catch(function(err) {
+            throw {
+              type: 'DatabaseError',
+              message: 'Failed to create test setup data'
+            };
+          });
+      });
+    });
+    
+  });
+  
+  describe('Has a logout', function() {
+    
+    var requestWithSession = request.defaults({jar: true});
+    
+    beforeEach(function(done) {
+      
+      var hash = bcrypt.hashSync('Phillip');
+      
+      new User({
+        'username': 'Phillip',
+        'password': hash
+      }).save().then(function() {
+        done();
+      });
+    });
+
+    it('Logs out signed in users', function(done) {
+      var options = {
+        'method': 'POST',
+        'uri': 'http://127.0.0.1:4568/login',
+        'json': {
+          'username': 'Phillip',
+          'password': 'Phillip'
+        }
+      };
+      var logoutOptions = {
+        'method': 'POST',
+        'uri': 'http://127.0.0.1:4568/logout',
+      }; 
+
+      requestWithSession(options, function(error, res, body) {
+        expect(res.headers.location).to.equal('/');
+        requestWithSession(logoutOptions, function(err, results, body2) {
+          console.log('status', results.statusCode);
+          expect(results.statusCode).to.equal(302);
+          done();
+        
+        });
+      });
+    
+    // it('Signup creates a user record', function(done) {
+    //   var options = {
+    //     'method': 'POST',
+    //     'uri': 'http://127.0.0.1:4568/signup',
+    //     'json': {
+    //       'username': 'Tim2',
+    //       'password': 'password1234'
+    //     }
+    //   }; 
+
+
+    });
+  });
 
   describe('Account Login:', function() {
 
     var requestWithSession = request.defaults({jar: true});
 
     beforeEach(function(done) {
+      
+      var hash = bcrypt.hashSync('Phillip');
+      
       new User({
         'username': 'Phillip',
-        'password': 'Phillip'
+        'password': hash
       }).save().then(function() {
         done();
       });

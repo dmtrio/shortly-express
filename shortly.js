@@ -59,9 +59,10 @@ app.get('/links', isLoggedIn, function(req, res) {
   });
 });
 
-app.get('/logout', function(req, res) {
+app.post('/logout', function(req, res) {
+  console.log('session', req.session.loggedIn);
   req.session.loggedIn = false;
-  res.status(302).redirect('/login');
+  res.redirect('/login');
 });
 
 app.post('/links', isLoggedIn, function(req, res) {
